@@ -44,7 +44,6 @@ def RetrieveAccess(f):
     print 'Failed to open the access file: %s' % f
 
   for line in fd.readlines():
-    print 'Line: %s' % line
     line = line.rstrip()
     (tag, val) = line.split('=')
     if tag in tags:
