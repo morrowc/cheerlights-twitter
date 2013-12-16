@@ -23,6 +23,7 @@ from threading import Thread
 
 # Recreate an API object every this many uses.
 API_REBIRTH = 10
+LIGHT_DELAY = 2
 LOGFILE = '/tmp/cheerlights.log'
 
 color_queue = Queue.Queue()
@@ -78,7 +79,7 @@ class Lights(Thread):
       self.reportchange(str(color))
       logging.info('LIGHTS wrote %d colors to the lights so far.',
           self.counter)
-      time.sleep(2)
+      time.sleep(LIGHT_DELAY)
 
 
 class TagCrawler(object):
@@ -92,7 +93,7 @@ class TagCrawler(object):
     queue: a Queue.Queue object, to write colors to.
     tag: a string, the search term to look for at twitter.
     interval: an integer, how often to re-search.
-    max_id: an integer, the last twitter result id seen.
+    since_id: an integer, the last twitter result id seen.
     debug: a boolean, to output debug information or not.
     con_key: a string, the consumer access key for twitter API calls.
     con_secret: a string, the consumer access secret for twitter API cals.
@@ -102,7 +103,7 @@ class TagCrawler(object):
   """
 
   def __init__(self, xbee, queue, tag=None, interval=10,
-      max_id=None, debug=False, con_key=None, con_secret=None,
+      since_id=0, debug=False, con_key=None, con_secret=None,
       access_key=None, access_secret=None):
     self.access_key = access_key
     self.access_secret = access_secret
@@ -115,7 +116,7 @@ class TagCrawler(object):
     self.consumer_secret = con_secret
     self.debug = debug
     self.interval = interval
-    self.max_id = max_id
+    self.since_id = since_id
     self.tag = tag
     self.xbee = xbee
       
@@ -148,14 +149,16 @@ class TagCrawler(object):
       # rebirth one every so often, 10 times.
       if not (count % API_REBIRTH):
         self.api = None
-        print 'Destroyed the twitter API object...'
+        print '[DEBUG]: Destroyed the twitter API object...'
 
       if not self.api:
-        print 'No twitter API object, creating one.'
+        print '[DEBUG]: No twitter API object, creating one.'
+        print '[DEBUG]: Additionally advancing the stuck since_id counter.'
+        self.since_id += 1
         self.CreateApi()
 
       logging.info("COLLECTOR Starting search")
-      print 'Starting search'
+      print '[DEBUG]: Starting search'
       data = self.Search()
       if data:
         logging.info("COLLECTOR %d new result(s)", len(data))
@@ -163,8 +166,8 @@ class TagCrawler(object):
         self.Submit(data)
       else:
         logging.info("COLLECTOR No new results")
-        print 'No new results'
-        print 'sleeping for %s seconds' % self.interval
+        print '[DEBUG]: No new results'
+        print '[DEBUG]: sleeping for %s seconds' % self.interval
         logging.info("COLLECTOR Search complete sleeping for %d seconds",
             self.interval)
       time.sleep(float(self.interval))
@@ -178,30 +181,29 @@ class TagCrawler(object):
     result = []
     try:
       response = self.api.GetSearch(count=10, term=self.tag,
-                                    max_id = self.max_id)
+                                    since_id = self.since_id)
     except urllib2.URLError as e:
       logging.info('Failed to GetSearch -> Tag: %s. Id: %s Err: %s',
-          self.tag, self.max_id, e)
+          self.tag, self.since_id, e)
       return result
 
     try:
-      print '****** Len response: %s' % len(response)
       if len(response) > 0:
-        logging.debug('Resetting max-id from: %s to %s.',
-            self.max_id, response[-1].id)
-        print ('Resetting max-id from: %s to %s.' %
-               (self.max_id, response[-1].id))
-        self.max_id = response[-1].id
+        logging.debug('Resetting since-id from: %s to %s.',
+            self.since_id, response[-1].id)
+        print ('[DEBUG]: Resetting since-id from: %s to %s.' %
+               (self.since_id, response[-1].id))
+        self.since_id = response[-1].id
     except urllib2.URLError as e:
-      print '******************** URLLib Error: %s' % e
+      print '[DEBUG]: URLLib Error: %s' % e
       logging.info('Failed to get a response length: %s', e)
       return result
 
     for resp in response:
       result.append(resp.text)
 
-    print 'Returning from search with %s responses.' % len(result)  
-    print 'Maxid: %s' % self.max_id
+    print '[DEBUG]: Returning from search with %s responses.' % len(result)  
+    print '[DEBUG]: Maxid: %s' % self.since_id
 
     return result
 
@@ -213,8 +215,8 @@ class TagCrawler(object):
       data: a list of strings.
     """
     for item in data:
-      print 'Colors loop text: "%s"' % item
-      print ('  found colors:'),
+      print '[DEBUG]: Colors loop text: "%s"' % item
+      print ('[DEBUG]:   found colors:'),
       for word in item.split():
         if word.lower() in self.colors:
           logging.info('COLLECTOR wrote %s to the queue.', word)
@@ -282,6 +284,8 @@ def main():
 
   if not options.access_conf:
     print 'Failed to provide access credantials, please do so.'
+    print ''
+    print opts.print_help()
     sys.exit(1)
 
   access_toks = RetrieveAccess(options.access_conf)
