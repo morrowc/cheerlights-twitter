@@ -60,11 +60,12 @@ class Lights(Thread):
     color_queue: a Queue.Queue object to watch for colors to change.
     report: a string, the URL to report the color change to.
   """
-  def __init__(self, xbee, queue, report):
-    self.xbee = xbee
+  def __init__(self, xbee, queue, report, debug=False):
     self.color_queue = queue
-    self.report = report
     self.counter = 0
+    self.debug = debug
+    self.report = report
+    self.xbee = xbee
     Thread.__init__(self)
 
   def reportchange(self, color):
@@ -90,7 +91,10 @@ class Lights(Thread):
       logging.info('Starting through the color reading loop.')
       color = self.color_queue.get()
       logging.info('LIGHTS Sending color: %s to the xbee.', color.upper())
-      self.xbee.write(' %s ' % str(color))
+      if not self.debug:
+        self.xbee.write(' %s ' % str(color))
+      else:
+        print '[DEBUG]: Color written to xbee: %s' % color
       self.counter += 1
       self.reportchange(str(color))
       logging.info('LIGHTS wrote %d colors to the lights so far.',
@@ -204,16 +208,19 @@ class TagCrawler(object):
       time.sleep(float(self.interval))
 
   def submit(self, data):
-    """Read the JSON output from each run.
+    """Read the string output from each search attempt's output.
 
+    Put a color onto the Queue.Queue if one is found in the string.
     Args:
-      data: a string.
+      data: a list of strings.
     """
     for item in data:
-      print ('Colors: '),
+      print 'Colors loop text: "%s"' % item
+      print ('  found colors:'),
       for word in item.split():
         if word.lower() in self.colors:
           logging.info('COLLECTOR wrote %s to the queue.', word)
+          print (' %s' % word),
           self.color_queue.put(word)
 
       print '.'
@@ -263,7 +270,7 @@ def main():
     xbee = open(LOGFILE, 'rw')
   if options.debug or xbee.isOpen():
     # Create the color writing thread
-    color_thread = Lights(xbee, color_queue, options.report)
+    color_thread = Lights(xbee, color_queue, options.report, options.debug)
     color_thread.setDaemon(True)
     color_thread.start()
 
