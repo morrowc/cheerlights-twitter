@@ -142,12 +142,23 @@ class TagCrawler(object):
       a list, of text from each twitter json object.
     """
     result = []
-    response = self.api.GetSearch(count=10, term=self.tag,
-                                  max_id = self.max_id)
-    if len(response) > 1:
-      logging.debug('Resetting max-id from: %s to %s.',
-          self.max_id, response[-1].id)
-      self.max_id = response[-1].id
+    try:
+      response = self.api.GetSearch(count=10, term=self.tag,
+                                    max_id = self.max_id)
+    except urllib2.URLError as e:
+      logging.info('Failed to GetSearch -> Tag: %s. Id: %s Err: %s',
+          self.tag, self.max_id, e)
+      return result
+
+    try:
+      if len(response) > 1:
+        logging.debug('Resetting max-id from: %s to %s.',
+            self.max_id, response[-1].id)
+        self.max_id = response[-1].id
+    except urllib2.URLError as e:
+      logging.info('Failed to get a response length: %s', e)
+      return result
+
     for resp in response:
       result.append(resp.text)
 
