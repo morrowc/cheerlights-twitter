@@ -91,6 +91,7 @@ class Lights(Thread):
       logging.info('Starting through the color reading loop.')
       color = self.color_queue.get()
       logging.info('LIGHTS Sending color: %s to the xbee.', color.upper())
+      logging.info('LIGHTS queue depth still: %s', self.color_queue.qsize())
       if not self.debug:
         self.xbee.write(' %s ' % str(color))
       else:
@@ -139,38 +140,6 @@ class TagCrawler(object):
     self.tag = tag
     self.xbee = xbee
       
-  def search(self):
-    """Search twitter for the tagline.
-
-    Returns:
-      a list, of text from each twitter json object.
-    """
-    result = []
-    try:
-      response = self.api.GetSearch(count=10, term=self.tag,
-                                    max_id = self.max_id)
-    except urllib2.URLError as e:
-      logging.info('Failed to GetSearch -> Tag: %s. Id: %s Err: %s',
-          self.tag, self.max_id, e)
-      return result
-
-    try:
-      if len(response) > 1:
-        logging.debug('Resetting max-id from: %s to %s.',
-            self.max_id, response[-1].id)
-        self.max_id = response[-1].id
-    except urllib2.URLError as e:
-      logging.info('Failed to get a response length: %s', e)
-      return result
-
-    for resp in response:
-      result.append(resp.text)
-
-    print 'Returning from search with %s responses.' % len(result)  
-    print 'Maxid: %s' % self.max_id
-
-    return result
-
   def loop(self):
     """Loop waiting for a search result, passing that along to submit.
 
@@ -206,6 +175,38 @@ class TagCrawler(object):
         logging.info("COLLECTOR Search complete sleeping for %d seconds",
             self.interval)
       time.sleep(float(self.interval))
+
+  def search(self):
+    """Search twitter for the tagline.
+
+    Returns:
+      a list, of text from each twitter json object.
+    """
+    result = []
+    try:
+      response = self.api.GetSearch(count=10, term=self.tag,
+                                    max_id = self.max_id)
+    except urllib2.URLError as e:
+      logging.info('Failed to GetSearch -> Tag: %s. Id: %s Err: %s',
+          self.tag, self.max_id, e)
+      return result
+
+    try:
+      if len(response) > 0:
+        logging.debug('Resetting max-id from: %s to %s.',
+            self.max_id, response[-1].id)
+        self.max_id = response[-1].id
+    except urllib2.URLError as e:
+      logging.info('Failed to get a response length: %s', e)
+      return result
+
+    for resp in response:
+      result.append(resp.text)
+
+    print 'Returning from search with %s responses.' % len(result)  
+    print 'Maxid: %s' % self.max_id
+
+    return result
 
   def submit(self, data):
     """Read the string output from each search attempt's output.
