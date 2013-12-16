@@ -21,35 +21,13 @@ import twitter
 from optparse import OptionParser
 from threading import Thread
 
+# Recreate an API object every this many uses.
+API_REBIRTH = 10
 LOGFILE = '/tmp/cheerlights.log'
 
 color_queue = Queue.Queue()
 
 author = 'christopher.morrow@gmail.com'
-
-
-def RetrieveAccess(f):
-  """Eval the contents of a config file.
-
-  Args:
-    f: a string, the filename of the config file.
-  Returns:
-    a dict of (consumer_key, consumer_secret, access_key, access_secret)
-  """
-  tags = ('consumer_key', 'consumer_secret', 'access_key', 'access_secret')
-  t = {}
-  try:
-    fd = open(f)
-  except IOError:
-    print 'Failed to open the access file: %s' % f
-
-  for line in fd.readlines():
-    line = line.rstrip()
-    (tag, val) = line.split('=')
-    if tag in tags:
-      t[tag] = val
-
-  return t
 
 
 class Lights(Thread):
@@ -130,7 +108,8 @@ class TagCrawler(object):
     self.access_secret = access_secret
     self.api = None
     self.colors = set(['red', 'green', 'blue', 'cyan', 'magenta', 'orange',
-                         'yellow', 'white', 'purple', 'black', 'pink'])
+                       'yellow', 'white', 'warmwhite', 'purple', 'black',
+                       'pink'])
     self.color_queue = queue
     self.consumer_key = con_key
     self.consumer_secret = con_secret
@@ -140,12 +119,8 @@ class TagCrawler(object):
     self.tag = tag
     self.xbee = xbee
       
-  def loop(self):
-    """Loop waiting for a search result, passing that along to submit.
-
-    Raises:
-      AttributeError: if the twitter api create fails.
-    """
+  def CreateApi(self):
+    """Create a valid Twitter API object."""
     try:
       api = twitter.Api(
           consumer_key=self.consumer_key,
@@ -160,14 +135,32 @@ class TagCrawler(object):
     logging.info('Created api handle for twitter api.')
     self.api = api
 
+  def Loop(self):
+    """Loop waiting for a search result, passing that along to submit.
+
+    Raises:
+      AttributeError: if the twitter api create fails.
+    """
+    count = 0
     while True:
+      count += 1
+      # The API seems to get hung every some number of queries,
+      # rebirth one every so often, 10 times.
+      if not (count % API_REBIRTH):
+        self.api = None
+        print 'Destroyed the twitter API object...'
+
+      if not self.api:
+        print 'No twitter API object, creating one.'
+        self.CreateApi()
+
       logging.info("COLLECTOR Starting search")
       print 'Starting search'
-      data = self.search()
+      data = self.Search()
       if data:
         logging.info("COLLECTOR %d new result(s)", len(data))
         print '[DEBUG] %d new results()' % len(data)
-        self.submit(data)
+        self.Submit(data)
       else:
         logging.info("COLLECTOR No new results")
         print 'No new results'
@@ -176,7 +169,7 @@ class TagCrawler(object):
             self.interval)
       time.sleep(float(self.interval))
 
-  def search(self):
+  def Search(self):
     """Search twitter for the tagline.
 
     Returns:
@@ -192,11 +185,15 @@ class TagCrawler(object):
       return result
 
     try:
+      print '****** Len response: %s' % len(response)
       if len(response) > 0:
         logging.debug('Resetting max-id from: %s to %s.',
             self.max_id, response[-1].id)
+        print ('Resetting max-id from: %s to %s.' %
+               (self.max_id, response[-1].id))
         self.max_id = response[-1].id
     except urllib2.URLError as e:
+      print '******************** URLLib Error: %s' % e
       logging.info('Failed to get a response length: %s', e)
       return result
 
@@ -208,7 +205,7 @@ class TagCrawler(object):
 
     return result
 
-  def submit(self, data):
+  def Submit(self, data):
     """Read the string output from each search attempt's output.
 
     Put a color onto the Queue.Queue if one is found in the string.
@@ -225,6 +222,30 @@ class TagCrawler(object):
           self.color_queue.put(word)
 
       print '.'
+
+
+def RetrieveAccess(f):
+  """Eval the contents of a config file.
+
+  Args:
+    f: a string, the filename of the config file.
+  Returns:
+    a dict of (consumer_key, consumer_secret, access_key, access_secret)
+  """
+  tags = ('consumer_key', 'consumer_secret', 'access_key', 'access_secret')
+  t = {}
+  try:
+    fd = open(f)
+  except IOError:
+    print 'Failed to open the access file: %s' % f
+
+  for line in fd.readlines():
+    line = line.rstrip()
+    (tag, val) = line.split('=')
+    if tag in tags:
+      t[tag] = val
+
+  return t
 
 
 def main():
@@ -283,7 +304,7 @@ def main():
                        access_key=access_toks['access_key'],
                        access_secret=access_toks['access_secret'],
                        )
-    crawl.loop()
+    crawl.Loop()
 
 
 if __name__ == '__main__':
