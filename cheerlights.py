@@ -14,6 +14,7 @@ import socket
 import sys
 import time
 import urllib
+import urllib2
 
 import serial
 import twitter
