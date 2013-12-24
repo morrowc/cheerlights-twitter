@@ -187,6 +187,9 @@ class TagCrawler(object):
       logging.info('Failed to GetSearch -> Tag: %s. Id: %s Err: %s',
           self.tag, self.since_id, e)
       return result
+    except httplib.BadStatusLin as e:
+      logging.info('Failed to GetSearch - BadStatusLine returned: %s', e)
+      return result
 
     try:
       if len(response) > 0:
