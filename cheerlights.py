@@ -7,10 +7,8 @@ Inspired by the Cheerlights project, do not require a full wired conenction.
 """
 
 import httplib
-import json
 import logging
 import Queue
-import socket
 import sys
 import time
 import urllib
@@ -56,8 +54,8 @@ class Lights(Thread):
 
     try:
       report = urllib.urlopen(self.report % color)
-    except IOError, e:
-      logging.debug('Failed to update the web collector: %s', e)
+    except IOError as err:
+      logging.debug('Failed to update the web collector: %s', err)
       return
 
     if report.read() != 'ok\n':
@@ -100,7 +98,7 @@ class TagCrawler(object):
     con_secret: a string, the consumer access secret for twitter API cals.
     access_key: a string, the access_key for the application API at twitter.
     access_secret: a string, the access_secret for the application API at
-    twitter.
+        twitter.
   """
 
   def __init__(self, xbee, queue, tag=None, interval=10,
@@ -121,7 +119,7 @@ class TagCrawler(object):
     self.tag = tag
     self.xbee = xbee
       
-  def CreateApi(self):
+  def createApi(self):
     """Create a valid Twitter API object."""
     try:
       api = twitter.Api(
@@ -130,14 +128,14 @@ class TagCrawler(object):
           access_token_key=self.access_key,
           access_token_secret=self.access_secret,
           )
-    except AttributeError as e:
-      logging.error('Failed to generate a new twitter-api handle: %s', e)
+    except AttributeError as err:
+      logging.error('Failed to generate a new twitter-api handle: %s', err)
       raise
 
     logging.info('Created api handle for twitter api.')
     self.api = api
 
-  def Loop(self):
+  def loop(self):
     """Loop waiting for a search result, passing that along to submit.
 
     Raises:
@@ -156,15 +154,15 @@ class TagCrawler(object):
         print '[DEBUG]: No twitter API object, creating one.'
         print '[DEBUG]: Additionally advancing the stuck since_id counter.'
         self.since_id += 1
-        self.CreateApi()
+        self.createApi()
 
       logging.info("COLLECTOR Starting search")
       print '[DEBUG]: Starting search'
-      data = self.Search()
+      data = self.search()
       if data:
         logging.info("COLLECTOR %d new result(s)", len(data))
         print '[DEBUG] %d new results()' % len(data)
-        self.Submit(data)
+        self.submit(data)
       else:
         logging.info("COLLECTOR No new results")
         print '[DEBUG]: No new results'
@@ -173,7 +171,7 @@ class TagCrawler(object):
             self.interval)
       time.sleep(float(self.interval))
 
-  def Search(self):
+  def search(self):
     """Search twitter for the tagline.
 
     Returns:
@@ -183,12 +181,12 @@ class TagCrawler(object):
     try:
       response = self.api.GetSearch(count=10, term=self.tag,
                                     since_id = self.since_id)
-    except urllib2.URLError as e:
+    except urllib2.URLError as err:
       logging.info('Failed to GetSearch -> Tag: %s. Id: %s Err: %s',
-          self.tag, self.since_id, e)
+          self.tag, self.since_id, err)
       return result
-    except httplib.BadStatusLin as e:
-      logging.info('Failed to GetSearch - BadStatusLine returned: %s', e)
+    except httplib.BadStatusLine as err:
+      logging.info('Failed to GetSearch - BadStatusLine returned: %s', err)
       return result
 
     try:
@@ -198,9 +196,9 @@ class TagCrawler(object):
         print ('[DEBUG]: Resetting since-id from: %s to %s.' %
                (self.since_id, response[-1].id))
         self.since_id = response[-1].id
-    except urllib2.URLError as e:
-      print '[DEBUG]: URLLib Error: %s' % e
-      logging.info('Failed to get a response length: %s', e)
+    except urllib2.URLError as err:
+      print '[DEBUG]: URLLib Error: %s' % err
+      logging.info('Failed to get a response length: %s', err)
       return result
 
     for resp in response:
@@ -211,7 +209,7 @@ class TagCrawler(object):
 
     return result
 
-  def Submit(self, data):
+  def submit(self, data):
     """Read the string output from each search attempt's output.
 
     Put a color onto the Queue.Queue if one is found in the string.
@@ -230,28 +228,28 @@ class TagCrawler(object):
       print '.'
 
 
-def RetrieveAccess(f):
+def retrieveAccess(fn):
   """Eval the contents of a config file.
 
   Args:
-    f: a string, the filename of the config file.
+    fn: a string, the filename of the config file.
   Returns:
     a dict of (consumer_key, consumer_secret, access_key, access_secret)
   """
   tags = ('consumer_key', 'consumer_secret', 'access_key', 'access_secret')
-  t = {}
+  tg = {}
   try:
-    fd = open(f)
+    fd = open(fn)
   except IOError:
-    print 'Failed to open the access file: %s' % f
+    print 'Failed to open the access file: %s' % fn
 
   for line in fd.readlines():
     line = line.rstrip()
     (tag, val) = line.split('=')
     if tag in tags:
-      t[tag] = val
+      tg[tag] = val
 
-  return t
+  return tg
 
 
 def main():
@@ -292,7 +290,7 @@ def main():
     print opts.print_help()
     sys.exit(1)
 
-  access_toks = RetrieveAccess(options.access_conf)
+  access_toks = retrieveAccess(options.access_conf)
 
   if not options.debug:
     xbee = serial.Serial(options.serial, options.baud)
@@ -312,7 +310,7 @@ def main():
                        access_key=access_toks['access_key'],
                        access_secret=access_toks['access_secret'],
                        )
-    crawl.Loop()
+    crawl.loop()
 
 
 if __name__ == '__main__':
