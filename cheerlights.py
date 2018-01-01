@@ -272,7 +272,7 @@ def main():
                   help='Twitter tag to search/follow.')
 
   opts.add_option('-r', '--report', dest='report',
-                  default='https://cheerlightsdata-hrd.appspot.com/?color=%s',
+                  default='https://doubled.ninja/?color=%s',
                   help='A full URL with substitution for the color.')
 
   opts.add_option('-d', '--debug', dest='debug',
