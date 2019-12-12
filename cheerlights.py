@@ -217,7 +217,7 @@ class TagCrawler(object):
       data: a list of strings.
     """
     for item in data:
-      print '[DEBUG]: Colors loop text: "%s"' % item
+      print '[DEBUG]: Colors loop text: "%s"' % item.encode("iso-8859-1")
       print ('[DEBUG]:   found colors:'),
       for word in item.split():
         if word.lower() in self.colors:
